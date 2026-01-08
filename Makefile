@@ -27,21 +27,19 @@ format: ## Format code
 typecheck: ## Run type checker
 	uv run --group lint mypy main.py
 
-docker-build: ## Build Docker image
+build: ## Build Docker image
 	docker build -t webhook-to-agentbuilder .
 
-docker-up: ## Start Docker container
-	docker compose up -d
-
-docker-down: ## Stop Docker container
-	docker compose down
-
-docker-rebuild: ## Rebuild and restart container (after git pull)
+rebuild: ## Rebuild and restart container (after git pull)
 	docker compose down
 	docker compose build --no-cache
 	docker compose up -d
 
-rebuild: docker-rebuild ## Alias for docker-rebuild
+up: ## Start Docker container
+	docker compose up -d
+
+down: ## Stop Docker container
+	docker compose down
 
 clean: ## Clean up cache files
 	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
