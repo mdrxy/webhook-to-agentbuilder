@@ -134,12 +134,15 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
 
     for attempt in range(MAX_RETRIES):
         try:
-            logger.info(
-                "Invoking agent for %s (attempt %d/%d)",
-                pr_info,
-                attempt + 1,
-                MAX_RETRIES,
-            )
+            if attempt == 0:
+                logger.info("Invoking agent for %s", pr_info)
+            else:
+                logger.info(
+                    "Retrying agent for %s (attempt %d/%d)",
+                    pr_info,
+                    attempt + 1,
+                    MAX_RETRIES,
+                )
 
             input_data: dict[str, Any] = {
                 "messages": [
