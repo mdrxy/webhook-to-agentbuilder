@@ -230,12 +230,12 @@ async def webhook(
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
     if x_github_event != "pull_request":
-        logger.info("Ignoring event type: %s", x_github_event)
+        logger.debug("Ignoring event type: %s", x_github_event)
         return Response(content="Event ignored", status_code=200)
 
     action = payload.get("action")
     if action != "opened":
-        logger.info("Ignoring pull_request action: %s", action)
+        logger.debug("Ignoring pull_request action: %s", action)
         return Response(content="Event ignored", status_code=200)
 
     pr_number = payload.get("number", "unknown")
