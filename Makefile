@@ -1,4 +1,4 @@
-.PHONY: help install install-dev dev test lint format typecheck docker-build docker-up docker-down clean
+.PHONY: help install install-dev dev test lint format typecheck docker-build docker-up docker-down docker-rebuild clean
 
 .DEFAULT_GOAL := help
 
@@ -35,6 +35,11 @@ docker-up: ## Start Docker container
 
 docker-down: ## Stop Docker container
 	docker compose down
+
+docker-rebuild: ## Rebuild and restart container (after git pull)
+	docker compose down
+	docker build -t webhook-to-agentbuilder .
+	docker compose up -d
 
 clean: ## Clean up cache files
 	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
