@@ -38,7 +38,7 @@ docker-down: ## Stop Docker container
 
 docker-rebuild: ## Rebuild and restart container (after git pull)
 	docker compose down
-	docker build -t webhook-to-agentbuilder .
+	docker compose build --no-cache
 	docker compose up -d
 
 clean: ## Clean up cache files
