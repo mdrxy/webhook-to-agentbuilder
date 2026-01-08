@@ -1,4 +1,4 @@
-.PHONY: help install install-dev dev test lint format typecheck docker-build docker-up docker-down docker-rebuild clean
+.PHONY: help install install-dev dev test lint format typecheck docker-build docker-up docker-down docker-rebuild rebuild clean
 
 .DEFAULT_GOAL := help
 
@@ -40,6 +40,8 @@ docker-rebuild: ## Rebuild and restart container (after git pull)
 	docker compose down
 	docker compose build --no-cache
 	docker compose up -d
+
+rebuild: docker-rebuild ## Alias for docker-rebuild
 
 clean: ## Clean up cache files
 	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
