@@ -1,39 +1,41 @@
-.PHONY: install dev test lint format typecheck docker-build docker-up docker-down clean
+.PHONY: help install install-dev dev test lint format typecheck docker-build docker-up docker-down clean
 
-# Install dependencies
-install:
+.DEFAULT_GOAL := help
+
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+install: ## Install dependencies
 	uv sync
 
-# Install with dev dependencies
-install-dev:
+install-dev: ## Install with dev dependencies
 	uv sync --group lint --group test
 
-# Run development server
-dev:
+dev: ## Run development server
 	uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-test:
+test: ## Run tests
 	uv run --group test pytest tests/ -v
 
-lint:
+lint: ## Run linter
 	uv run --group lint ruff check .
 
-format:
+format: ## Format code
 	uv run --group lint ruff format .
 	uv run --group lint ruff check --fix .
 
-typecheck:
+typecheck: ## Run type checker
 	uv run --group lint mypy main.py
 
-docker-build:
+docker-build: ## Build Docker image
 	docker build -t webhook-to-agentbuilder .
 
-docker-up:
+docker-up: ## Start Docker container
 	docker compose up -d
 
-docker-down:
+docker-down: ## Stop Docker container
 	docker compose down
 
-clean:
+clean: ## Clean up cache files
 	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
