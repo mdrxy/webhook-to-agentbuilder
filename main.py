@@ -115,7 +115,8 @@ app = FastAPI(lifespan=lifespan)
 async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
     """Invoke the LangGraph agent with the GitHub payload.
 
-    Implements exponential backoff retry on failure.
+    Uses fire-and-forget pattern with `runs.create()`. Implements exponential
+    backoff retry if the API call fails.
 
     Args:
         payload: The GitHub webhook payload dictionary.
@@ -131,6 +132,9 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
     )
 
     payload_json = json.dumps(payload)
+    input_data: dict[str, Any] = {
+        "messages": [{"type": "human", "content": payload_json}]
+    }
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -144,16 +148,7 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
                     MAX_RETRIES,
                 )
 
-            input_data: dict[str, Any] = {
-                "messages": [
-                    {
-                        "role": "human",
-                        "content": payload_json,
-                    }
-                ]
-            }
-
-            result = await client.runs.wait(
+            await client.runs.create(
                 None,  # Threadless run
                 AGENT_ID,
                 input=input_data,
@@ -175,8 +170,7 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
                     MAX_RETRIES,
                 )
         else:
-            logger.info("Agent invocation successful for %s", pr_info)
-            logger.info("Agent response: %s", result)
+            logger.info("Agent run created for %s", pr_info)
             return
 
 
