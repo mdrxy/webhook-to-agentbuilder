@@ -14,7 +14,7 @@ dependencies = [
 [dependency-groups]
 lint = [
     "ruff>=0.14.10,<1.0.0",
-    "mypy>=1.19.1,<2.0.0",
+    "ty>=0.0.1a7",
 ]
 test = [
     "pytest>=9.0.2,<10.0.0",
@@ -51,11 +51,11 @@ ignore = [
     "S105",    # Allow hardcoded test secrets
 ]
 
-[tool.mypy]
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.rules]
+all = "error"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

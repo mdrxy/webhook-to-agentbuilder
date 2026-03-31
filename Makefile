@@ -25,7 +25,7 @@ format: ## Format code
 	uv run --group lint ruff check --fix .
 
 typecheck: ## Run type checker
-	uv run --group lint mypy main.py
+	uv run --group lint ty check
 
 docker-build: ## Build Docker image
 	docker build -t webhook-to-fleet .
@@ -44,5 +44,5 @@ docker-rebuild: ## Rebuild and restart container (after git pull)
 rebuild: docker-rebuild ## Alias for docker-rebuild
 
 clean: ## Clean up cache files
-	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
+	rm -rf __pycache__ .pytest_cache .ty_cache .ruff_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

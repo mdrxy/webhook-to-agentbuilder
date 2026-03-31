@@ -3,7 +3,7 @@
 - `uv` – Fast Python package installer and resolver (replaces pip/poetry)
 - `make` – Task runner for common development commands. Feel free to look at the `Makefile` for available commands and usage patterns.
 - `ruff` – Fast Python linter and formatter
-- `mypy` – Static type checking
+- `ty` – Static type checking (Astral, Rust-based)
 - `pytest` – Testing framework
 
 This monorepo uses `uv` for dependency management. Local development uses editable installs: `[tool.uv.sources]`
@@ -24,7 +24,7 @@ make lint
 make format
 
 # Type checking
-uv run --group lint mypy .
+uv run --group lint ty check
 ```
 
 #### Key config files
