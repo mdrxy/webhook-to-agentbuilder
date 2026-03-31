@@ -29,6 +29,7 @@ PORT = int(os.getenv("PORT", "8000"))
 
 MAX_RETRIES = 3
 RETRY_DELAYS = [1, 2, 4]  # seconds
+AGENT_TIMEOUT = 7200  # seconds to wait for agent response
 
 logging.basicConfig(
     level=logging.INFO,
@@ -123,7 +124,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001
 app = FastAPI(lifespan=lifespan)
 
 
-async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
+async def invoke_agent(
+    payload: dict[str, Any],
+    pr_info: str,
+    *,
+    wait_for_response: bool = False,
+) -> list[dict[str, Any]] | dict[str, Any] | None:
     """Invoke the LangGraph agent with the GitHub payload.
 
     Retries on transient network errors with fixed backoff delays. All failures
@@ -133,6 +139,14 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
     Args:
         payload: The GitHub webhook payload dictionary.
         pr_info: Human-readable PR identifier for logging.
+        wait_for_response: If `True`, block until the agent finishes and return
+            its final state.
+
+            If `False`, fire-and-forget.
+
+    Returns:
+        The agent's final state (dict or list of dicts) when
+        `wait_for_response` is `True`, or `None` when it is `False`.
 
     Raises:
         RuntimeError: If agent invocation fails after all retry attempts.
@@ -172,12 +186,30 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
             thread = await client.threads.create()
             thread_id = thread["thread_id"]
 
+            if wait_for_response:
+                result = await asyncio.wait_for(
+                    client.runs.wait(
+                        thread_id,
+                        AGENT_ID,
+                        input=input_data,
+                    ),
+                    timeout=AGENT_TIMEOUT,
+                )
+                logger.info("Agent response for %s: %s", pr_info, result)
+                return result
+
             await client.runs.create(
                 thread_id,
                 AGENT_ID,
                 input=input_data,
             )
-        except (OSError, TimeoutError) as exc:
+            logger.info("Agent invocation successful for %s", pr_info)
+            return None
+        except TimeoutError as exc:
+            logger.exception("Agent timed out after %ds for %s", AGENT_TIMEOUT, pr_info)
+            msg = f"Agent timed out after {AGENT_TIMEOUT}s for {pr_info}"
+            raise RuntimeError(msg) from exc
+        except OSError as exc:
             if attempt < MAX_RETRIES - 1:
                 delay = RETRY_DELAYS[attempt]
                 logger.warning(
@@ -194,9 +226,8 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
                 )
                 logger.exception(msg)
                 raise RuntimeError(msg) from exc
-        else:
-            logger.info("Agent invocation successful for %s", pr_info)
-            return
+
+    return None
 
 
 @app.get("/health")
