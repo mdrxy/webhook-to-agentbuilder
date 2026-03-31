@@ -28,7 +28,7 @@ typecheck: ## Run type checker
 	uv run --group lint mypy main.py
 
 docker-build: ## Build Docker image
-	docker build -t webhook-to-agentbuilder .
+	docker build -t webhook-to-fleet .
 
 docker-up: ## Start Docker container
 	docker compose up -d

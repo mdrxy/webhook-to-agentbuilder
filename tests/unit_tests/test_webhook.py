@@ -1,14 +1,15 @@
-"""Unit tests for webhook signature validation and event filtering."""
+"""Unit tests for the webhook relay."""
 
 import hashlib
 import hmac
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-# Mock environment variables before importing main
+# Patch env vars at module scope because main.py reads them
+# at import time via os.getenv()
 with patch.dict(
     "os.environ",
     {
@@ -18,7 +19,7 @@ with patch.dict(
         "GITHUB_WEBHOOK_SECRET": "test-secret",
     },
 ):
-    from main import app, verify_signature
+    from main import app, invoke_agent, validate_config, verify_signature
 
 
 @pytest.fixture
@@ -212,7 +213,7 @@ class TestWebhookEndpoint:
 
     @patch("main.invoke_agent")
     def test_pull_request_opened_returns_202(
-        self, mock_invoke: pytest.fixture, client: TestClient, webhook_secret: str
+        self, mock_invoke: MagicMock, client: TestClient, webhook_secret: str
     ) -> None:
         """Test that `pull_request` opened event returns `202 Accepted`."""
         payload = {
@@ -236,6 +237,7 @@ class TestWebhookEndpoint:
 
         assert response.status_code == 202
         assert response.text == "Accepted"
+        mock_invoke.assert_called_once_with(payload, "PR #42 in test/repo")
 
     def test_invalid_json_returns_400(
         self, client: TestClient, webhook_secret: str
@@ -255,3 +257,107 @@ class TestWebhookEndpoint:
         )
 
         assert response.status_code == 400
+
+
+class TestValidateConfig:
+    """Tests for the `validate_config` function."""
+
+    def test_all_vars_set(self) -> None:
+        """Test that no error is raised when all vars are set."""
+        validate_config()
+
+    def test_missing_single_var(self) -> None:
+        """Test that a single missing var is reported."""
+        with (
+            patch("main.LANGSMITH_API_KEY", ""),
+            pytest.raises(ValueError, match="LANGSMITH_API_KEY"),
+        ):
+            validate_config()
+
+    def test_missing_multiple_vars(self) -> None:
+        """Test that all missing vars are listed in the error message."""
+        with (
+            patch("main.LANGSMITH_API_KEY", ""),
+            patch("main.AGENT_API_URL", ""),
+        ):
+            with pytest.raises(ValueError, match="LANGSMITH_API_KEY") as exc_info:
+                validate_config()
+            assert "AGENT_API_URL" in str(exc_info.value)
+
+    def test_empty_string_treated_as_missing(self) -> None:
+        """Test that empty string values are treated as missing."""
+        with (
+            patch("main.GITHUB_WEBHOOK_SECRET", ""),
+            pytest.raises(ValueError, match="GITHUB_WEBHOOK_SECRET"),
+        ):
+            validate_config()
+
+
+class TestInvokeAgent:
+    """Tests for the `invoke_agent` function."""
+
+    async def test_successful_invocation(self) -> None:
+        """Test that agent invocation succeeds on first attempt."""
+        mock_client = AsyncMock()
+        mock_client.threads.create.return_value = {"thread_id": "test-thread"}
+
+        with patch("main.get_client", return_value=mock_client):
+            await invoke_agent({"action": "opened"}, "PR #1 in test/repo")
+
+        mock_client.threads.create.assert_called_once()
+        mock_client.runs.create.assert_called_once_with(
+            "test-thread",
+            "test-agent-id",
+            input={
+                "messages": [
+                    {
+                        "type": "human",
+                        "content": json.dumps({"action": "opened"}),
+                    }
+                ]
+            },
+        )
+
+    async def test_retries_on_transient_error(self) -> None:
+        """Test that agent retries on network errors with correct delays."""
+        mock_client = AsyncMock()
+        mock_client.threads.create.side_effect = [
+            OSError("connection refused"),
+            {"thread_id": "test-thread"},
+        ]
+
+        with (
+            patch("main.get_client", return_value=mock_client),
+            patch("main.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            await invoke_agent({"action": "opened"}, "PR #1 in test/repo")
+
+        assert mock_client.threads.create.call_count == 2
+        mock_sleep.assert_called_once_with(1)
+
+    async def test_raises_after_exhausted_retries(self) -> None:
+        """Test that RuntimeError is raised after all retries fail."""
+        mock_client = AsyncMock()
+        mock_client.threads.create.side_effect = OSError("connection refused")
+
+        with (
+            patch("main.get_client", return_value=mock_client),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(RuntimeError, match="after 3 attempts"),
+        ):
+            await invoke_agent({"action": "opened"}, "PR #1 in test/repo")
+
+        assert mock_client.threads.create.call_count == 3
+
+    async def test_does_not_retry_non_network_errors(self) -> None:
+        """Test that non-network errors propagate immediately."""
+        mock_client = AsyncMock()
+        mock_client.threads.create.side_effect = KeyError("thread_id")
+
+        with (
+            patch("main.get_client", return_value=mock_client),
+            pytest.raises(KeyError),
+        ):
+            await invoke_agent({"action": "opened"}, "PR #1 in test/repo")
+
+        mock_client.threads.create.assert_called_once()

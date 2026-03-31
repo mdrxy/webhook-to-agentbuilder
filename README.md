@@ -19,8 +19,8 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `LANGSMITH_API_KEY` | LangSmith Personal Access Token |
-| `AGENT_API_URL` | Agent Builder deployment URL |
-| `AGENT_ID` | Agent UUID from Agent Builder settings |
+| `AGENT_API_URL` | Fleet deployment URL |
+| `AGENT_ID` | Agent UUID from Fleet settings |
 | `GITHUB_WEBHOOK_SECRET` | Secret configured in GitHub webhook settings |
 | `PORT` | Server port (default: 8000) |
 

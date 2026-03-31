@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_config() -> None:
-    """Validate that all required environment variables are set.
+    """Validate that all required environment variables are set and non-empty.
 
     Raises:
         ValueError: If any required environment variable is missing.
@@ -69,7 +69,7 @@ def verify_signature(
     Uses constant-time comparison to prevent timing attacks.
 
     Args:
-        payload_body: Raw request body bytes (UTF-8 encoded).
+        payload_body: Raw request body bytes.
         signature_header: Value of X-Hub-Signature-256 header.
         secret: GitHub webhook secret for HMAC computation.
 
@@ -77,7 +77,14 @@ def verify_signature(
         `True` if signature is valid, `False` otherwise.
 
     """
-    if not signature_header or not signature_header.startswith("sha256="):
+    if not signature_header:
+        logger.warning("Webhook signature header is missing")
+        return False
+
+    if not signature_header.startswith("sha256="):
+        logger.warning(
+            "Webhook signature has unexpected format (expected sha256= prefix)"
+        )
         return False
 
     expected_signature = hmac.new(
@@ -86,8 +93,12 @@ def verify_signature(
         hashlib.sha256,
     ).hexdigest()
 
-    received_signature = signature_header[7:]  # Strip "sha256=" prefix
-    return hmac.compare_digest(expected_signature, received_signature)
+    received_signature = signature_header.removeprefix("sha256=")
+    if not hmac.compare_digest(expected_signature, received_signature):
+        logger.warning("Webhook signature mismatch (HMAC comparison failed)")
+        return False
+
+    return True
 
 
 @asynccontextmanager
@@ -115,11 +126,16 @@ app = FastAPI(lifespan=lifespan)
 async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
     """Invoke the LangGraph agent with the GitHub payload.
 
-    Implements exponential backoff retry on failure.
+    Retries on transient network errors with fixed backoff delays. All failures
+    are logged; a `RuntimeError` is raised after retries are exhausted so that
+    the background task runner surfaces the failure.
 
     Args:
         payload: The GitHub webhook payload dictionary.
         pr_info: Human-readable PR identifier for logging.
+
+    Raises:
+        RuntimeError: If agent invocation fails after all retry attempts.
 
     """
     client = get_client(
@@ -161,7 +177,7 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
                 AGENT_ID,
                 input=input_data,
             )
-        except Exception:
+        except (OSError, TimeoutError) as exc:
             if attempt < MAX_RETRIES - 1:
                 delay = RETRY_DELAYS[attempt]
                 logger.warning(
@@ -172,11 +188,12 @@ async def invoke_agent(payload: dict[str, Any], pr_info: str) -> None:
                 )
                 await asyncio.sleep(delay)
             else:
-                logger.exception(
-                    "Agent invocation failed for %s after %d attempts",
-                    pr_info,
-                    MAX_RETRIES,
+                msg = (
+                    f"Agent invocation failed for {pr_info} "
+                    f"after {MAX_RETRIES} attempts"
                 )
+                logger.exception(msg)
+                raise RuntimeError(msg) from exc
         else:
             logger.info("Agent invocation successful for %s", pr_info)
             return
@@ -215,7 +232,8 @@ async def webhook(
         Response with appropriate status code and message.
 
     Raises:
-        HTTPException: If signature validation fails (401).
+        HTTPException: If signature validation fails (401) or the request body
+            contains invalid JSON (400).
 
     """
     body = await request.body()
@@ -241,8 +259,18 @@ async def webhook(
         return Response(content="Event ignored", status_code=200)
 
     pr_number = payload.get("number", "unknown")
-    repo_name = payload.get("repository", {}).get("full_name", "unknown")
-    pr_title = payload.get("pull_request", {}).get("title", "unknown")
+    repository = payload.get("repository")
+    repo_name = (
+        repository.get("full_name", "unknown")
+        if isinstance(repository, dict)
+        else "unknown"
+    )
+    pull_request = payload.get("pull_request")
+    pr_title = (
+        pull_request.get("title", "unknown")
+        if isinstance(pull_request, dict)
+        else "unknown"
+    )
     pr_info = f"PR #{pr_number} in {repo_name}"
     logger.info("Received pull_request opened: %s - %s", pr_info, pr_title)
 
