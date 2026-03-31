@@ -1,6 +1,6 @@
-# webhook-to-agentbuilder
+# webhook-to-fleet
 
-Lightweight webhook relay that receives GitHub webhook events and forwards them to a [LangSmith Agent Builder](https://docs.langchain.com/langsmith/agent-builder) agent.
+Lightweight webhook relay that receives GitHub webhook events and forwards them to a [LangSmith Fleet](https://docs.langchain.com/langsmith/fleet/index) agent.
 
 ## Features
 
@@ -18,7 +18,7 @@ cp .env.example .env
 
 | Variable | Description |
 |----------|-------------|
-| `LANGGRAPH_API_KEY` | LangSmith Personal Access Token |
+| `LANGSMITH_API_KEY` | LangSmith Personal Access Token |
 | `AGENT_API_URL` | Agent Builder deployment URL |
 | `AGENT_ID` | Agent UUID from Agent Builder settings |
 | `GITHUB_WEBHOOK_SECRET` | Secret configured in GitHub webhook settings |

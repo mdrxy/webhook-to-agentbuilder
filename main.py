@@ -1,7 +1,7 @@
-"""GitHub webhook relay to LangChain Agent Builder.
+"""GitHub webhook relay to LangSmith Fleet.
 
-Receives GitHub webhook `POST` requests and forwards `pull_request 'opened'` events to a
-LangChain Agent Builder agent.
+Receives GitHub webhook `POST` requests and forwards `pull_request 'opened'`
+events to a LangSmith Fleet agent.
 """
 
 import asyncio

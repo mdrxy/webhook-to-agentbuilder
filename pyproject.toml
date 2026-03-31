@@ -1,7 +1,7 @@
 [project]
-name = "webhook-to-agentbuilder"
+name = "webhook-to-fleet"
 version = "0.1.0"
-description = "Lightweight webhook relay from GitHub to LangChain Agent Builder"
+description = "Lightweight webhook relay from GitHub to LangSmith Fleet"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.128.0,<1.0.0",

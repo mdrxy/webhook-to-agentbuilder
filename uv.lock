@@ -626,7 +626,7 @@ wheels = [
 ]
 
 [[package]]
-name = "webhook-to-agentbuilder"
+name = "webhook-to-fleet"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
